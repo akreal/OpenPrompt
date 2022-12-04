@@ -1,7 +1,7 @@
 from pickle import FALSE
 from torch.utils.data.sampler import RandomSampler
 from transformers.configuration_utils import PretrainedConfig
-from transformers.generation_utils import GenerationMixin
+from transformers import GenerationMixin
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
@@ -13,6 +13,7 @@ from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.utils.dummy_pt_objects import PreTrainedModel
 from openprompt.plms.utils import TokenizerWrapper
 from openprompt.prompt_base import Template, Verbalizer
+import copy
 from collections import defaultdict
 from openprompt.utils import round_list, signature
 import numpy as np
@@ -487,6 +488,14 @@ class PromptForGeneration(nn.Module, GenerationMixin):
             generated_sentences (:obj:`List[torch.Tensor]`): The generated sentences that have been post-processed.
         """
         input_generation_kwargs = {key: value for key,value in generation_kwargs.items() if key in signature(GenerationMixin.generate).args}
+
+        filtered_batch = copy.copy(batch)
+
+        if "model_args" in generation_kwargs:
+            for key in filtered_batch.keys():
+                if key not in generation_kwargs["model_args"]:
+                    filtered_batch[key] = None
+
         if self.config.is_encoder_decoder:
             loss_ids_start = batch['loss_ids'].argmax(dim=-1)
             assert loss_ids_start.min() == loss_ids_start.max(), "The generation start from different position in a batch."
@@ -496,7 +505,7 @@ class PromptForGeneration(nn.Module, GenerationMixin):
 
             self.generate_ith_token = 0
             self.in_generation_function = True
-            output_sequences = super().generate(**batch, **input_generation_kwargs, pad_token_id=self.tokenizer.pad_token_id, eos_token_id=self.tokenizer.eos_token_id)
+            output_sequences = super().generate(**filtered_batch, **input_generation_kwargs, pad_token_id=self.tokenizer.pad_token_id, eos_token_id=self.tokenizer.eos_token_id)
             self.in_generation_function = False
             output_sequences = output_sequences.cpu().tolist()
             generated_sentences = self.post_processing(output_sequences=output_sequences, input_lengths=input_length)
@@ -514,7 +523,7 @@ class PromptForGeneration(nn.Module, GenerationMixin):
             output_sequences = []
             for instance_id in range(batch_size):
                 # remove the pad token
-                instance = {key: batch[key][instance_id:instance_id+1][:,:input_real_lens[instance_id]] for key in batch if isinstance(batch[key], torch.Tensor) and batch[key].shape[:2]==torch.Size([batch_size, input_length])}
+                instance = {key: batch[key][instance_id:instance_id+1][:,:input_real_lens[instance_id]] for key in filtered_batch if isinstance(batch[key], torch.Tensor) and batch[key].shape[:2]==torch.Size([batch_size, input_length])}
                 self.generate_ith_token = 0
                 self.in_generation_function = True
                 output_sequence = super().generate(**instance, **input_generation_kwargs, pad_token_id=self.tokenizer.pad_token_id, eos_token_id=self.tokenizer.eos_token_id)
@@ -602,7 +611,7 @@ class PromptForGeneration(nn.Module, GenerationMixin):
             for key in self.last_model_inputs:
                 if key in model_kwargs:
                     model_kwargs[key] = self.last_model_inputs[key]
-        model_kwargs = super(PromptForGeneration, PromptForGeneration)._update_model_kwargs_for_generation(outputs=outputs, model_kwargs=model_kwargs, is_encoder_decoder=is_encoder_decoder)
+        model_kwargs = super(PromptForGeneration, PromptForGeneration)._update_model_kwargs_for_generation(self, outputs=outputs, model_kwargs=model_kwargs, is_encoder_decoder=is_encoder_decoder)
         self.generate_ith_token += 1
         return model_kwargs
 
