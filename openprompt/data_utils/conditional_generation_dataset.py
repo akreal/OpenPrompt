@@ -110,11 +110,32 @@ class WebNLGProcessor(DataProcessor):
     def get_src_tgt_len_ratio(self,):
         pass
 
+class FLEURSProcessor(DataProcessor):
+    def __init__(self):
+        super().__init__()
+        self.labels = None
+
+    def get_examples(self, data_dir: str, split: str) -> List[InputExample]:
+        examples = []
+        path = os.path.join(data_dir, "{}.tsv".format(split))
+
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter="\t")
+            for row in reader:
+                text = row["sentence"].split(maxsplit=1)[1]
+                example = InputExample(guid=row["path"], text_a=text, text_b=row["accent"], tgt_text=text)
+                examples.append(example)
+
+        return examples
+
+    def get_src_tgt_len_ratio(self,):
+        pass
 
 
 PROCESSORS = {
     "webnlg_2017": WebNLGProcessor,
     "webnlg": WebNLGProcessor,
+    "fleurs": FLEURSProcessor,
     # "e2e": E2eProcessor,
     # "dart" : DartProcessor,
 }
