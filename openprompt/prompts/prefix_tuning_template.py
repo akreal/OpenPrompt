@@ -2,9 +2,13 @@
 from functools import partial
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
+from transformers.models.bloom.configuration_bloom import BloomConfig
+from transformers.models.opt.configuration_opt import OPTConfig
 from transformers.models.t5.configuration_t5 import T5Config
 from transformers.models.t5.modeling_t5 import T5ForConditionalGeneration
 from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel
+from transformers.models.bloom.modeling_bloom import BloomForCausalLM
+from transformers.models.opt.modeling_opt import OPTForCausalLM
 from openprompt.data_utils import InputFeatures
 import os
 import torch
@@ -72,6 +76,16 @@ class PrefixTuningTemplate(Template):
             self.n_decoder_layer = self.config.n_layer
             self.n_embd = self.config.n_embd
             self.n_head = self.config.n_head
+            self.match_n_decoder_layer = self.n_decoder_layer
+        elif isinstance(self.config, BloomConfig):
+            self.n_decoder_layer = self.config.n_layer
+            self.n_embd = self.config.hidden_size
+            self.n_head = self.config.n_head
+            self.match_n_decoder_layer = self.n_decoder_layer
+        elif isinstance(self.config, OPTConfig):
+            self.n_decoder_layer = self.config.num_hidden_layers
+            self.n_embd = self.config.hidden_size
+            self.n_head = self.config.num_attention_heads
             self.match_n_decoder_layer = self.n_decoder_layer
         self.mid_dim = mid_dim
         self.match_n_head = self.n_head
@@ -158,7 +172,17 @@ class PrefixTuningTemplate(Template):
         return super().wrap_one_example(example)
 
     def expand_to_batchsize(self, tup,  batch_size):
-        return tuple(t.expand(-1, batch_size,-1,-1,-1) for t in tup)
+        if self.config.model_type == "bloom":
+            expanded_tup = tuple(
+                tuple([
+                    t[0].expand(batch_size,-1,-1,-1).reshape(-1, t[0].size(2), t[0].size(3)).permute(0, 2, 1),
+                    t[1].expand(batch_size,-1,-1,-1).reshape(-1, t[1].size(2), t[1].size(3))
+                ])
+                for t in tup
+            )
+        else:
+            expanded_tup = tuple(t.expand(-1, batch_size,-1,-1,-1) for t in tup)
+        return expanded_tup
 
     def expand_to_batchsize_for_layer(self, tup,  batch_size, layer_id):
         return tup[layer_id].expand(-1, batch_size,-1,-1,-1)
@@ -229,6 +253,10 @@ class PrefixTuningTemplate(Template):
                     layer_module.layer[0].forward = partial(modified_decoder_self_attn_forward, layer_id=i)
 
         elif isinstance(model, GPT2LMHeadModel):
+            pass
+        elif isinstance(model, BloomForCausalLM):
+            pass
+        elif isinstance(model, OPTForCausalLM):
             pass
         else:
             raise NotImplementedError
