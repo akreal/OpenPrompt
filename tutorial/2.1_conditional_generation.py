@@ -71,7 +71,6 @@ if use_cuda:
     prompt_model=  prompt_model.cuda()
 
 
-from transformers import AdamW
 # Follow PrefixTuning（https://github.com/XiangLi1999/PrefixTuning), we also fix the language model
 # only include the template's parameters in training.
 
@@ -88,7 +87,7 @@ optimizer_grouped_parameters = [
 ]
 
 
-optimizer = AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8)
+optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8)
 
 from transformers.optimization import get_linear_schedule_with_warmup
 
@@ -154,8 +153,8 @@ for epoch in range(1):
         if global_step %500 ==0:
             print("Epoch {}, global_step {} average loss: {} lr: {}".format(epoch, global_step, (tot_loss-log_loss)/500, scheduler.get_last_lr()[0]), flush=True)
             log_loss = tot_loss
-#            generated_sentence = evaluate(prompt_model, test_dataloader)
-#            print(generated_sentence[0])
+            generated_sentence = evaluate(prompt_model, test_dataloader)
+            print(generated_sentence[0])
 
 generated_sentence = evaluate(prompt_model, test_dataloader)
 
