@@ -1,4 +1,5 @@
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
+from jiwer import cer
 from typing import *
 from openprompt.utils.logging import logger
 
@@ -141,5 +142,7 @@ def generation_metric(hypos,
             scores.append(sc)
         score = sum(scores)/len(scores)
         return score
+    elif metric == "cer":
+        return cer(refs, hypos)
     else:
         raise ValueError("'{}' is not a valid metric type.".format(metric))
