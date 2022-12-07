@@ -4,11 +4,13 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.models.gpt2.configuration_gpt2 import GPT2Config
 from transformers.models.bloom.configuration_bloom import BloomConfig
 from transformers.models.opt.configuration_opt import OPTConfig
+from transformers.models.xglm.configuration_xglm import XGLMConfig
 from transformers.models.t5.configuration_t5 import T5Config
 from transformers.models.t5.modeling_t5 import T5ForConditionalGeneration
 from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel
 from transformers.models.bloom.modeling_bloom import BloomForCausalLM
 from transformers.models.opt.modeling_opt import OPTForCausalLM
+from transformers.models.xglm.modeling_xglm import XGLMForCausalLM
 from openprompt.data_utils import InputFeatures
 import os
 import torch
@@ -86,6 +88,11 @@ class PrefixTuningTemplate(Template):
             self.n_decoder_layer = self.config.num_hidden_layers
             self.n_embd = self.config.hidden_size
             self.n_head = self.config.num_attention_heads
+            self.match_n_decoder_layer = self.n_decoder_layer
+        elif isinstance(self.config, XGLMConfig):
+            self.n_decoder_layer = self.config.num_layers
+            self.n_embd = self.config.d_model
+            self.n_head = self.config.attention_heads
             self.match_n_decoder_layer = self.n_decoder_layer
         self.mid_dim = mid_dim
         self.match_n_head = self.n_head
@@ -257,6 +264,8 @@ class PrefixTuningTemplate(Template):
         elif isinstance(model, BloomForCausalLM):
             pass
         elif isinstance(model, OPTForCausalLM):
+            pass
+        elif isinstance(model, XGLMForCausalLM):
             pass
         else:
             raise NotImplementedError

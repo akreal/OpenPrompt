@@ -14,7 +14,8 @@ from transformers import BertConfig, BertTokenizer, BertModel, BertForMaskedLM, 
                          GPT2Config, GPT2Tokenizer, GPT2LMHeadModel, \
                          OPTConfig, OPTForCausalLM, \
                          ElectraConfig, ElectraForMaskedLM, ElectraTokenizer, \
-                         BloomConfig, BloomTokenizerFast, BloomForCausalLM
+                         BloomConfig, BloomTokenizerFast, BloomForCausalLM, \
+                         XGLMConfig, XGLMTokenizer, XGLMForCausalLM
 from collections import namedtuple
 from yacs.config import CfgNode
 
@@ -82,6 +83,12 @@ _MODEL_CLASSES = {
         'config': BloomConfig,
         'tokenizer': BloomTokenizerFast,
         'model': BloomForCausalLM,
+        'wrapper': LMTokenizerWrapper,
+    }),
+    'xglm': ModelClass(**{
+        'config': XGLMConfig,
+        'tokenizer': XGLMTokenizer,
+        'model': XGLMForCausalLM,
         'wrapper': LMTokenizerWrapper,
     }),
 }

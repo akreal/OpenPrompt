@@ -587,6 +587,8 @@ class PromptForGeneration(nn.Module, GenerationMixin):
             # check the compatibility for more models. Having checked gpt2, T5
         else: # generating the subsequence generation can use the default setting
             model_inputs = self.plm.prepare_inputs_for_generation(input_ids, **model_kwargs)
+            if self.plm.config.model_type == "xglm":
+                model_inputs["attention_mask"] = None
         self.last_model_inputs = model_inputs  # to update the model_kwargs in _update_model_kwargs_for_generation, in-place operation.
         return model_inputs
 
