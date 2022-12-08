@@ -47,7 +47,7 @@ from openprompt.prompts.prefix_tuning_template import PrefixTuningTemplate
 # i.e.
 # mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer)
 # is equal to
-mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer, text='{"placeholder":"text_a"} {"mask"}')
+mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer, text='{"placeholder":"text_a"} {"mask":None, "shortenable":True}')
 #mytemplate = PrefixTuningTemplate(model=plm,  tokenizer=tokenizer, text=' {"placeholder":"text_a"} {"special": "<eos>"} {"mask"} ', using_decoder_past_key_values=False)
 
 # To better understand how does the template wrap the example, we visualize one instance.
@@ -57,7 +57,7 @@ wrapped_example = mytemplate.wrap_one_example(dataset['train'][0])
 print(wrapped_example)
 
 
-batch_size = 32
+batch_size = 8
 
 # Your can loop over the dataset by yourself by subsequently call mytemplate.wrap_one_example  and WrapperClass().tokenizer()
 # but we have provide a PromptDataLoader for you.
@@ -105,7 +105,7 @@ optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8
 
 from transformers.optimization import get_linear_schedule_with_warmup
 
-max_epoch = 10
+max_epoch = 20
 tot_step  = len(train_dataloader) * max_epoch
 scheduler = get_linear_schedule_with_warmup(optimizer, 0, tot_step)
 
@@ -199,8 +199,8 @@ for epoch in range(max_epoch):
 
 prompt_model.load_state_dict(best_state_dict)
 
-score = evaluate(prompt_model, validation_dataloader)
-logging.info(f"Validation CER: {score}")
+score = evaluate(prompt_model, validation_dataloader) * 100.0
+logging.info(f"Validation CER: {score:.2f}")
 
-score = evaluate(prompt_model, test_dataloader)
-logging.info(f"Test CER: {score}")
+score = evaluate(prompt_model, test_dataloader) * 100.0
+logging.info(f"Test CER: {score:.2f}")
