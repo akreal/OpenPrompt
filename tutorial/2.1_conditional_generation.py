@@ -18,7 +18,6 @@ random.seed(seed)
 np.random.seed(seed)
 torch.random.manual_seed(seed)
 
-
 logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
 
 parser = argparse.ArgumentParser("")
@@ -26,6 +25,7 @@ parser.add_argument("--lr", type=float, default=5e-5)
 parser.add_argument("--plm_eval_mode", action="store_true")
 parser.add_argument("--model", type=str, default='t5')  # tested model are gpt2/t5
 parser.add_argument("--model_name_or_path", default='t5-base')
+parser.add_argument("--no_train", action="store_true")
 args = parser.parse_args()
 print(args)
 
@@ -119,8 +119,6 @@ def evaluate(prompt_model, dataloader):
 
     for step, inputs in enumerate(dataloader):
         logging.info(f"Generation step {step}")
-        if use_cuda:
-            inputs = inputs.cuda()
         _, output_sentence = prompt_model.generate(inputs, **generation_arguments)
         generated_sentence.extend(output_sentence)
         groundtruth_sentence.extend(inputs['tgt_text'])
@@ -154,53 +152,56 @@ log_loss = 0
 
 best_val_loss = 99999
 best_val_epoch = -1
-best_state_dict = None
 patience = 2
+ckpt_file = f"{args.model_name_or_path}_lr{args.lr}_best.bin".replace("/", "-")
 
-for epoch in range(max_epoch):
-    prompt_model.train()
-    for step, inputs in enumerate(train_dataloader):
-        global_step += 1
-        if use_cuda:
-            inputs = inputs.cuda()
-        loss = prompt_model(inputs)
-        loss.backward()
-        tot_loss += loss.item()
-        torch.nn.utils.clip_grad_norm_(mytemplate.parameters(), 1.0)
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        if global_step % 10 == 0:
-            logging.info("Epoch {}, global_step {} average loss: {} lr: {}".format(epoch+1, global_step, (tot_loss-log_loss)/ 10, scheduler.get_last_lr()[0]))
-            log_loss = tot_loss
+if not args.no_train:
+    for epoch in range(max_epoch):
+        prompt_model.train()
+        for step, inputs in enumerate(train_dataloader):
+            global_step += 1
+            if use_cuda:
+                inputs = inputs.cuda()
+            loss = prompt_model(inputs)
+            loss.backward()
+            tot_loss += loss.item()
+            torch.nn.utils.clip_grad_norm_(mytemplate.parameters(), 1.0)
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            if global_step % 10 == 0:
+                logging.info("Epoch {}, global_step {} average loss: {} lr: {}".format(epoch+1, global_step, (tot_loss-log_loss)/ 10, scheduler.get_last_lr()[0]))
+                log_loss = tot_loss
 
-    prompt_model.eval()
+        prompt_model.eval()
 
-    val_loss = 0
-    val_step = 0
-    
-    for _, inputs in enumerate(validation_dataloader):
-        if use_cuda:
-            inputs = inputs.cuda()
-        loss = prompt_model(inputs)
-        val_loss += loss.item()
-        val_step += 1
+        val_loss = 0
+        val_step = 0
 
-    val_loss = val_loss / val_step
-    logging.info(f"Validation loss for epoch {epoch}: {val_loss}")
+        for _, inputs in enumerate(validation_dataloader):
+            if use_cuda:
+                inputs = inputs.cuda()
+            loss = prompt_model(inputs)
+            val_loss += loss.item()
+            val_step += 1
 
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
-        best_val_epoch = epoch
-        best_state_dict = prompt_model.state_dict()
-    elif epoch - best_val_epoch > patience:
-        logging.info(f"Validation loss has not improved since epoch {best_val_epoch} (>{patience} epochs), stopping training")
-        break
+        val_loss = val_loss / val_step
+        logging.info(f"Validation loss for epoch {epoch}: {val_loss}")
 
-prompt_model.load_state_dict(best_state_dict)
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_val_epoch = epoch
+            torch.save(prompt_model.state_dict(), ckpt_file)
+        elif epoch - best_val_epoch > patience:
+            logging.info(f"Validation loss has not improved since epoch {best_val_epoch} (>{patience} epochs), stopping training")
+            break
 
-score = evaluate(prompt_model, validation_dataloader) * 100.0
-logging.info(f"Validation CER: {score:.2f}")
+if args.no_train:
+    prompt_model = prompt_model.cpu()
+    prompt_model.load_state_dict(torch.load(ckpt_file))
 
-score = evaluate(prompt_model, test_dataloader) * 100.0
-logging.info(f"Test CER: {score:.2f}")
+    score = evaluate(prompt_model, validation_dataloader) * 100.0
+    logging.info(f"Validation CER: {score:.2f}")
+
+    score = evaluate(prompt_model, test_dataloader) * 100.0
+    logging.info(f"Test CER: {score:.2f}")
