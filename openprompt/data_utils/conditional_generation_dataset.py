@@ -111,9 +111,10 @@ class WebNLGProcessor(DataProcessor):
         pass
 
 class FLEURSProcessor(DataProcessor):
-    def __init__(self):
+    def __init__(self, add_lang: str):
         super().__init__()
         self.labels = None
+        self.add_lang = add_lang
 
     def get_examples(self, data_dir: str, split: str) -> List[InputExample]:
         examples = []
@@ -122,11 +123,18 @@ class FLEURSProcessor(DataProcessor):
         with open(path, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter="\t")
             for row in reader:
-                text = row["sentence"].split(maxsplit=1)[1]
-                example = InputExample(guid=row["path"], text_a=text, text_b=row["accent"], tgt_text=text)
+                src_text = row["sentence"].split(maxsplit=1)[1]
+                if self.add_lang != "code":
+                    tgt_text = row["sentence"].split(maxsplit=1)[1]
+                    if self.add_lang == "name":
+                        tgt_text = row["accent"] + " language: " + tgt_text
+                else:
+                    tgt_text = row["sentence"]
+                example = InputExample(guid=row["path"], text_a=src_text, text_b=row["accent"], tgt_text=tgt_text)
                 examples.append(example)
 
         return examples
+        #return examples[:(512 if split == "train" else 32)]
 
     def get_src_tgt_len_ratio(self,):
         pass

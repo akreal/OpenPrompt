@@ -23,18 +23,20 @@ logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=loggi
 parser = argparse.ArgumentParser("")
 parser.add_argument("--lr", type=float, default=5e-5)
 parser.add_argument("--plm_eval_mode", action="store_true")
-parser.add_argument("--model", type=str, default='t5')  # tested model are gpt2/t5
-parser.add_argument("--model_name_or_path", default='t5-base')
+parser.add_argument("--model", type=str, default='bloom')  # tested model are gpt2/t5
+parser.add_argument("--model_name_or_path", default='bigscience/bloomz-560m')
 parser.add_argument("--no_train", action="store_true")
+parser.add_argument("--add_lang", choices=['', 'name', 'code'], default='')
 args = parser.parse_args()
 print(args)
 
 from openprompt.data_utils.conditional_generation_dataset import FLEURSProcessor
 fleurs_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/fleurs/"
 dataset = {}
-dataset['train'] = FLEURSProcessor().get_train_examples(fleurs_path)
-dataset['validation'] = FLEURSProcessor().get_dev_examples(fleurs_path)
-dataset['test'] = FLEURSProcessor().get_test_examples(fleurs_path)
+processor = FLEURSProcessor(add_lang=args.add_lang)
+dataset['train'] = processor.get_train_examples(fleurs_path)
+dataset['validation'] = processor.get_dev_examples(fleurs_path)
+dataset['test'] = processor.get_test_examples(fleurs_path)
 
 
 # load a pretrained model, its tokenizer, its config, and its TokenzerWrapper by one function
@@ -47,7 +49,7 @@ from openprompt.prompts.prefix_tuning_template import PrefixTuningTemplate
 # i.e.
 # mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer)
 # is equal to
-mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer, text='{"placeholder":"text_a"} {"mask":None, "shortenable":True}')
+mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer, text='Detect language and repeat the sentence: {"placeholder":"text_a"}. {"mask":None, "shortenable":True}')
 #mytemplate = PrefixTuningTemplate(model=plm,  tokenizer=tokenizer, text=' {"placeholder":"text_a"} {"special": "<eos>"} {"mask"} ', using_decoder_past_key_values=False)
 
 # To better understand how does the template wrap the example, we visualize one instance.
@@ -55,7 +57,6 @@ mytemplate = PrefixTuningTemplate(model=plm, tokenizer=tokenizer, text='{"placeh
 # is a language-model-specific token. we will add it for you in the TokenizerWrapper once you pass `predict_eos_token=True`
 wrapped_example = mytemplate.wrap_one_example(dataset['train'][0])
 print(wrapped_example)
-
 
 batch_size = 8
 
