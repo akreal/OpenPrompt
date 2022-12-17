@@ -26,7 +26,7 @@ parser.add_argument("--plm_eval_mode", action="store_true")
 parser.add_argument("--model", type=str, default='bloom')  # tested model are gpt2/t5
 parser.add_argument("--model_name_or_path", default='bigscience/bloomz-560m')
 parser.add_argument("--no_train", action="store_true")
-parser.add_argument("--add_lang", choices=['', 'name', 'code'], default='')
+parser.add_argument("--add_lang", choices=['none', 'name', 'code'], default='none')
 args = parser.parse_args()
 print(args)
 
@@ -63,10 +63,13 @@ batch_size = 8
 # Your can loop over the dataset by yourself by subsequently call mytemplate.wrap_one_example  and WrapperClass().tokenizer()
 # but we have provide a PromptDataLoader for you.
 from openprompt import PromptDataLoader
-train_dataloader = PromptDataLoader(dataset=dataset["train"], template=mytemplate, tokenizer=tokenizer,
-    tokenizer_wrapper_class=WrapperClass, max_seq_length=256, decoder_max_length=256,
-    batch_size=batch_size, shuffle=True, teacher_forcing=True, predict_eos_token=True, # be sure to pass predict_eos_token=True if your template doesn't contain one, or you model may fail to stop generation.
-    truncate_method="head")
+if args.no_train:
+    train_loader = None
+else:
+    train_dataloader = PromptDataLoader(dataset=dataset["train"], template=mytemplate, tokenizer=tokenizer,
+        tokenizer_wrapper_class=WrapperClass, max_seq_length=256, decoder_max_length=256,
+        batch_size=batch_size, shuffle=True, teacher_forcing=True, predict_eos_token=True, # be sure to pass predict_eos_token=True if your template doesn't contain one, or you model may fail to stop generation.
+        truncate_method="head")
 
 validation_dataloader = PromptDataLoader(dataset=dataset["validation"], template=mytemplate, tokenizer=tokenizer,
     tokenizer_wrapper_class=WrapperClass, max_seq_length=256, decoder_max_length=256,
@@ -102,13 +105,31 @@ optimizer_grouped_parameters = [
 ]
 
 
-optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8)
+def split_text(texts):
+    langs, sentences = [[], []]
 
-from transformers.optimization import get_linear_schedule_with_warmup
+    for s in texts:
+        lang, sentence = ["", ""]
 
-max_epoch = 20
-tot_step  = len(train_dataloader) * max_epoch
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, tot_step)
+        if args.add_lang == "name":
+            if "language:" in s:
+                parts = [x.strip() for x in s.split("language:", maxsplit=1)]
+                lang, sentence = parts
+            else:
+                sentence = s
+        elif args.add_lang == "code":
+            if "]" in s:
+                parts = [x.strip() for x in s.split("]", maxsplit=1)]
+                lang, sentence = parts
+            else:
+                sentence = s
+        else:
+            sentence = s
+
+        langs.append(lang)
+        sentences.append(sentence)
+
+    return langs, sentences
 
 # We provide generation a generation metric, you can also define your own. Note that it's not directly comparable to WebNLG's scripts evaluation.
 from openprompt.utils.metrics import generation_metric
@@ -116,15 +137,32 @@ from openprompt.utils.metrics import generation_metric
 def evaluate(prompt_model, dataloader):
     generated_sentence = []
     groundtruth_sentence = []
+
+    generated_lang = []
+    groundtruth_lang = []
+
     prompt_model.eval()
 
-    for step, inputs in enumerate(dataloader):
-        logging.info(f"Generation step {step}")
-        _, output_sentence = prompt_model.generate(inputs, **generation_arguments)
-        generated_sentence.extend(output_sentence)
-        groundtruth_sentence.extend(inputs['tgt_text'])
-    score = generation_metric(generated_sentence, groundtruth_sentence, "cer")
-    return score
+    with torch.no_grad():
+        for step, inputs in enumerate(dataloader):
+            logging.info(f"Generation step {step}")
+            if use_cuda:
+                inputs = inputs.cuda()
+            _, output_sentence = prompt_model.generate(inputs, **generation_arguments)
+
+            pred_lang, pred_sentence = split_text(output_sentence)
+            generated_sentence.extend(pred_sentence)
+            generated_lang.extend(pred_lang)
+
+            tgt_lang, tgt_sentence = split_text(inputs['tgt_text'])
+            groundtruth_sentence.extend(tgt_sentence)
+            groundtruth_lang.extend(tgt_lang)
+
+
+    cer = generation_metric(generated_sentence, groundtruth_sentence, "cer") * 100.0
+    acc = sum(1 for x,y in zip(generated_lang, groundtruth_lang) if x == y) / len(generated_lang) * 100.0
+
+    return acc, cer
 
 
 model_args = set(inspect.signature(prompt_model.prepare_inputs_for_generation).parameters)
@@ -154,9 +192,17 @@ log_loss = 0
 best_val_loss = 99999
 best_val_epoch = -1
 patience = 2
-ckpt_file = f"{args.model_name_or_path}_lr{args.lr}_best.bin".replace("/", "-")
+ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}.bin".replace("/", "-")
 
 if not args.no_train:
+    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8)
+
+    from transformers.optimization import get_linear_schedule_with_warmup
+
+    max_epoch = 20
+    tot_step  = len(train_dataloader) * max_epoch
+    scheduler = get_linear_schedule_with_warmup(optimizer, 0, tot_step)
+
     for epoch in range(max_epoch):
         prompt_model.train()
         for step, inputs in enumerate(train_dataloader):
@@ -179,12 +225,13 @@ if not args.no_train:
         val_loss = 0
         val_step = 0
 
-        for _, inputs in enumerate(validation_dataloader):
-            if use_cuda:
-                inputs = inputs.cuda()
-            loss = prompt_model(inputs)
-            val_loss += loss.item()
-            val_step += 1
+        with torch.no_grad():
+            for _, inputs in enumerate(validation_dataloader):
+                if use_cuda:
+                    inputs = inputs.cuda()
+                loss = prompt_model(inputs)
+                val_loss += loss.item()
+                val_step += 1
 
         val_loss = val_loss / val_step
         logging.info(f"Validation loss for epoch {epoch}: {val_loss}")
@@ -198,11 +245,10 @@ if not args.no_train:
             break
 
 if args.no_train:
-    prompt_model = prompt_model.cpu()
     prompt_model.load_state_dict(torch.load(ckpt_file))
 
-    score = evaluate(prompt_model, validation_dataloader) * 100.0
-    logging.info(f"Validation CER: {score:.2f}")
+    acc, cer = evaluate(prompt_model, validation_dataloader)
+    logging.info(f"Validation accuracy, CER: {acc:.2f}, {cer:.2f}")
 
-    score = evaluate(prompt_model, test_dataloader) * 100.0
-    logging.info(f"Test CER: {score:.2f}")
+    acc, cer = evaluate(prompt_model, test_dataloader)
+    logging.info(f"Test accuracy, CER: {acc:.2f}, {cer:.2f}")
