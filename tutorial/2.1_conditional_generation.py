@@ -28,6 +28,11 @@ parser.add_argument("--no_train", action="store_true")
 parser.add_argument("--add_lang", choices=["none", "name", "code"], default="code")
 parser.add_argument("--num_token", type=int, default=5)
 parser.add_argument("--mid_dim", type=int, default=512)
+parser.add_argument(
+    "--text",
+    type=str,
+    default='Detect language and repeat the sentence: {"placeholder":"text_a"}. {"mask":None, "shortenable":True}',
+)
 args = parser.parse_args()
 print(args)
 
@@ -58,7 +63,7 @@ from openprompt.prompts.prefix_tuning_template import PrefixTuningTemplate
 mytemplate = PrefixTuningTemplate(
     model=plm,
     tokenizer=tokenizer,
-    text='Detect language and repeat the sentence: {"placeholder":"text_a"}. {"mask":None, "shortenable":True}',
+    text=args.text,
     num_token=args.num_token,
     mid_dim=args.mid_dim,
 )
@@ -254,7 +259,7 @@ log_loss = 0
 best_val_loss = 99999
 best_val_epoch = -1
 patience = 2
-ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}_t{args.num_token}_d{args.mid_dim}.bin".replace(
+ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}_t{args.num_token}_d{args.mid_dim}_l{len(args.text)}.bin".replace(
     "/", "-"
 )
 
