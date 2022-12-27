@@ -202,7 +202,13 @@ class PrefixTuningTemplate(Template):
         for normal token, use the embedding inside PLM
         for new token, use MLP or LSTM
         """
-        batch_size = batch['input_ids'].size(0)
+        if "input_ids" in batch:
+            batch_size = batch['input_ids'].size(0)
+        elif "inputs_embeds" in batch:
+            batch_size = batch['inputs_embeds'].size(0)
+        else:
+            raise NotImplementedError("\"input_ids\" or \"inputs_embeds\" is needed")
+
         self.past_key_values = self.get_past_key_values()
 
         if self.config.is_encoder_decoder:
