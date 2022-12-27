@@ -254,7 +254,7 @@ log_loss = 0
 best_val_loss = 99999
 best_val_epoch = -1
 patience = 2
-ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}.bin".replace(
+ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}_t{args.num_token}_d{args.mid_dim}.bin".replace(
     "/", "-"
 )
 
