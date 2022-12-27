@@ -20,12 +20,14 @@ torch.random.manual_seed(seed)
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=logging.INFO)
 
 parser = argparse.ArgumentParser("")
-parser.add_argument("--lr", type=float, default=5e-5)
+parser.add_argument("--lr", type=float, default=5e-6)
 parser.add_argument("--plm_eval_mode", action="store_true")
 parser.add_argument("--model", type=str, default="bloom")  # tested model are gpt2/t5
 parser.add_argument("--model_name_or_path", default="bigscience/bloomz-560m")
 parser.add_argument("--no_train", action="store_true")
-parser.add_argument("--add_lang", choices=["none", "name", "code"], default="none")
+parser.add_argument("--add_lang", choices=["none", "name", "code"], default="code")
+parser.add_argument("--num_token", type=int, default=5)
+parser.add_argument("--mid_dim", type=int, default=512)
 args = parser.parse_args()
 print(args)
 
@@ -57,6 +59,8 @@ mytemplate = PrefixTuningTemplate(
     model=plm,
     tokenizer=tokenizer,
     text='Detect language and repeat the sentence: {"placeholder":"text_a"}. {"mask":None, "shortenable":True}',
+    num_token=args.num_token,
+    mid_dim=args.mid_dim,
 )
 # mytemplate = PrefixTuningTemplate(model=plm,  tokenizer=tokenizer, text=' {"placeholder":"text_a"} {"special": "<eos>"} {"mask"} ', using_decoder_past_key_values=False)
 
