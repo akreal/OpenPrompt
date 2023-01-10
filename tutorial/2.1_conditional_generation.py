@@ -11,6 +11,7 @@ import torch
 import logging
 import numpy as np
 import random
+import sys
 
 seed = 13
 random.seed(seed)
@@ -29,6 +30,9 @@ parser.add_argument("--add_lang", choices=["none", "name", "code"], default="cod
 parser.add_argument("--num_token", type=int, default=5)
 parser.add_argument("--mid_dim", type=int, default=512)
 parser.add_argument(
+    "--task", choices=["langid_transcribe", "translate"], default="langid_transcribe"
+)
+parser.add_argument(
     "--text",
     type=str,
     default='Detect language and repeat the sentence: {"placeholder":"text_a"}. {"mask":None, "shortenable":True}',
@@ -36,14 +40,29 @@ parser.add_argument(
 args = parser.parse_args()
 print(args)
 
-from openprompt.data_utils.conditional_generation_dataset import FLEURSProcessor
-
-fleurs_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/fleurs/"
 dataset = {}
-processor = FLEURSProcessor(add_lang=args.add_lang)
-dataset["train"] = processor.get_train_examples(fleurs_path)
-dataset["validation"] = processor.get_dev_examples(fleurs_path)
-dataset["test"] = processor.get_test_examples(fleurs_path)
+
+if args.task == "langid_transcribe":
+    from openprompt.data_utils.conditional_generation_dataset import FLEURSProcessor
+
+    processor = FLEURSProcessor(add_lang=args.add_lang)
+    fleurs_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/fleurs/"
+    dataset["train"] = processor.get_train_examples(fleurs_path)
+    dataset["validation"] = processor.get_dev_examples(fleurs_path)
+    dataset["test"] = processor.get_test_examples(fleurs_path)
+elif args.task == "translate":
+    from openprompt.data_utils.conditional_generation_dataset import CoVoSTProcessor
+
+    processor = CoVoSTProcessor()
+    covost_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/covost/data/"
+    dataset["train"] = processor.get_train_examples(covost_path)
+    dataset["validation"] = processor.get_dev_examples(covost_path)
+    dataset["test"] = processor.get_test_examples(covost_path)
+
+    args.text = 'Translate the following text {"placeholder":"text_a"} {"mask":None, "shortenable":True}'
+else:
+    print(f"Unknown task '{args.task}'")
+    sys.exit()
 
 
 # load a pretrained model, its tokenizer, its config, and its TokenzerWrapper by one function
@@ -75,7 +94,7 @@ mytemplate = PrefixTuningTemplate(
 wrapped_example = mytemplate.wrap_one_example(dataset["train"][0])
 print(wrapped_example)
 
-batch_size = 8
+batch_size = 4
 
 # Your can loop over the dataset by yourself by subsequently call mytemplate.wrap_one_example  and WrapperClass().tokenizer()
 # but we have provide a PromptDataLoader for you.
@@ -259,7 +278,7 @@ log_loss = 0
 best_val_loss = 99999
 best_val_epoch = -1
 patience = 2
-ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}_t{args.num_token}_d{args.mid_dim}_l{len(args.text)}.bin".replace(
+ckpt_file = f"{args.model_name_or_path}_{args.add_lang}_lr{args.lr}_b{batch_size}_t{args.num_token}_d{args.mid_dim}_l{len(args.text)}.bin".replace(
     "/", "-"
 )
 

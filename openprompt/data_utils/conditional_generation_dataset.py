@@ -16,7 +16,10 @@ This file contains the logic for loading data for all Conditional Generation tas
 
 from openprompt.data_utils.utils import InputExample
 import os
-import json, csv
+import csv
+import json
+import glob
+import random
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
 from typing import List, Dict, Callable
@@ -110,6 +113,7 @@ class WebNLGProcessor(DataProcessor):
     def get_src_tgt_len_ratio(self,):
         pass
 
+
 class FLEURSProcessor(DataProcessor):
     def __init__(self, add_lang: str):
         super().__init__()
@@ -134,7 +138,68 @@ class FLEURSProcessor(DataProcessor):
                 examples.append(example)
 
         return examples
-        #return examples[:(512 if split == "train" else 32)]
+
+    def get_src_tgt_len_ratio(self,):
+        pass
+
+
+class CoVoSTProcessor(DataProcessor):
+    def __init__(self):
+        super().__init__()
+        self.labels = None
+
+        random.seed(1)
+
+        self.lang2name = {
+            "en": "English",
+            "fr": "French",
+            "de": "German",
+            "es": "Spanish",
+            "ca": "Catalan",
+            "it": "Italian",
+            "ru": "Russian",
+            "zh-CN": "Mandarin",
+            "pt": "Portuguese",
+            "fa": "Persian",
+            "et": "Estonian",
+            "mn": "Mongolian",
+            "nl": "Dutch",
+            "tr": "Turkish",
+            "ar": "Arabic",
+            "sv-SE": "Swedish",
+            "lv": "Latvian",
+            "sl": "Slovenian",
+            "ta": "Tamil",
+            "ja": "Japanese",
+            "id": "Indonesian",
+            "cy": "Welsh",
+        }
+
+    def get_examples(self, data_dir: str, split: str) -> List[InputExample]:
+        examples = []
+
+        for path in sorted(glob.glob(os.path.join(data_dir, "*.{}.tsv".format(split)))):
+            src_lang, tgt_lang = path.split("/")[-1].split(".")[1].split("_")
+            src_lang_name = self.lang2name[src_lang]
+            tgt_lang_name = self.lang2name[tgt_lang]
+
+            lang_examples = []
+
+            with open(path, encoding="utf-8") as f:
+                reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
+                for row in reader:
+                    src_text = row["sentence"]
+                    tgt_text = row["translation"]
+                    example = InputExample(guid=row["path"], text_a=f"from {src_lang_name} to {tgt_lang_name}\n{src_text}\n", tgt_text=tgt_text)
+                    lang_examples.append(example)
+
+            if split == "train" and len(lang_examples) > 5000:
+                random.shuffle(lang_examples)
+                lang_examples = lang_examples[:5000]
+
+            examples.extend(lang_examples)
+
+        return examples
 
     def get_src_tgt_len_ratio(self,):
         pass
@@ -144,6 +209,7 @@ PROCESSORS = {
     "webnlg_2017": WebNLGProcessor,
     "webnlg": WebNLGProcessor,
     "fleurs": FLEURSProcessor,
+    "covost": CoVoSTProcessor,
     # "e2e": E2eProcessor,
     # "dart" : DartProcessor,
 }
