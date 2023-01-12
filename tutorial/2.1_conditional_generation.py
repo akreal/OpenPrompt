@@ -240,13 +240,15 @@ def evaluate(prompt_model, dataloader):
             groundtruth_lang.extend(tgt_lang)
 
     cer = generation_metric(generated_sentence, groundtruth_sentence, "cer") * 100.0
+    bleu = generation_metric(generated_sentence, groundtruth_sentence, "bleu")
+    chrf = generation_metric(generated_sentence, groundtruth_sentence, "chrf")
     acc = (
         sum(1 for x, y in zip(generated_lang, groundtruth_lang) if x == y)
         / len(generated_lang)
         * 100.0
     )
 
-    return acc, cer
+    return f"Acc;CER;BLEU;CHRF: {acc:.02f};{cer:.02f};{bleu:.02f};{chrf:.02f}"
 
 
 model_args = set(
@@ -344,8 +346,8 @@ if not args.no_train:
 if args.no_train:
     prompt_model.load_state_dict(torch.load(ckpt_file))
 
-    acc, cer = evaluate(prompt_model, validation_dataloader)
-    logging.info(f"Validation accuracy, CER: {acc:.2f}, {cer:.2f}")
+    result = evaluate(prompt_model, validation_dataloader)
+    logging.info(f"Validation {result}")
 
-    acc, cer = evaluate(prompt_model, test_dataloader)
-    logging.info(f"Test accuracy, CER: {acc:.2f}, {cer:.2f}")
+    result = evaluate(prompt_model, test_dataloader)
+    logging.info(f"Test {result}")

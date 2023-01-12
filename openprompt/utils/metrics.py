@@ -1,6 +1,8 @@
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 from jiwer import cer
 from typing import *
+from sacrebleu.metrics import BLEU, CHRF
+
 from openprompt.utils.logging import logger
 
 def f1(p, r):
@@ -144,5 +146,11 @@ def generation_metric(hypos,
         return score
     elif metric == "cer":
         return cer(refs, hypos)
+    elif metric == "bleu":
+        bleu = BLEU()
+        return bleu.corpus_score(refs, [[x] for x in hypos]).score
+    elif metric == "chrf":
+        chrf = CHRF()
+        return chrf.corpus_score(refs, [[x] for x in hypos]).score
     else:
         raise ValueError("'{}' is not a valid metric type.".format(metric))
