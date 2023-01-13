@@ -19,6 +19,7 @@ import os
 import csv
 import json
 import glob
+import re
 import random
 from abc import ABC, abstractmethod
 from collections import defaultdict, Counter
@@ -150,6 +151,9 @@ class CoVoSTProcessor(DataProcessor):
 
         random.seed(1)
 
+        self.nonword = re.compile(r"\[[^\]]+\]")
+        self.spaces = re.compile(r"\s+")
+
         self.lang2name = {
             "en": "English",
             "fr": "French",
@@ -188,10 +192,12 @@ class CoVoSTProcessor(DataProcessor):
             with open(path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
                 for row in reader:
-                    src_text = row["sentence"]
-                    tgt_text = row["translation"]
-                    example = InputExample(guid=row["path"], text_a=f"from {src_lang_name} to {tgt_lang_name}\n{src_text}\n", tgt_text=tgt_text)
-                    lang_examples.append(example)
+                    src_text = re.sub(self.spaces, " ", re.sub(self.nonword, " ", row["sentence"])).strip()
+                    tgt_text = re.sub(self.spaces, " ", re.sub(self.nonword, " ", row["translation"])).strip()
+
+                    if src_text != "" and tgt_text != "":
+                        example = InputExample(guid=row["path"], text_a=f"from {src_lang_name} to {tgt_lang_name}\n{src_text}\n", tgt_text=tgt_text)
+                        lang_examples.append(example)
 
             if split == "train" and len(lang_examples) > 5000:
                 random.shuffle(lang_examples)
