@@ -60,6 +60,7 @@ elif args.task == "translate":
     dataset["test"] = processor.get_test_examples(covost_path)
 
     args.text = 'Translate the following text {"placeholder":"text_a"} {"mask":None, "shortenable":True}'
+    args.add_lang = "none"
 else:
     print(f"Unknown task '{args.task}'")
     sys.exit()
@@ -102,6 +103,21 @@ from openprompt import PromptDataLoader
 
 if args.no_train:
     train_loader = None
+    validation_dataloader = None
+    test_dataloader = PromptDataLoader(
+        dataset=dataset["test"],
+        template=mytemplate,
+        tokenizer=tokenizer,
+        tokenizer_wrapper_class=WrapperClass,
+        max_seq_length=256,
+        decoder_max_length=256,
+        batch_size=batch_size,
+        shuffle=False,
+        teacher_forcing=False,
+        predict_eos_token=True,
+        truncate_method="head",
+    )
+
 else:
     train_dataloader = PromptDataLoader(
         dataset=dataset["train"],
@@ -117,33 +133,21 @@ else:
         truncate_method="head",
     )
 
-validation_dataloader = PromptDataLoader(
-    dataset=dataset["validation"],
-    template=mytemplate,
-    tokenizer=tokenizer,
-    tokenizer_wrapper_class=WrapperClass,
-    max_seq_length=256,
-    decoder_max_length=256,
-    batch_size=batch_size,
-    shuffle=False,
-    teacher_forcing=False,
-    predict_eos_token=True,
-    truncate_method="head",
-)
+    validation_dataloader = PromptDataLoader(
+        dataset=dataset["validation"],
+        template=mytemplate,
+        tokenizer=tokenizer,
+        tokenizer_wrapper_class=WrapperClass,
+        max_seq_length=256,
+        decoder_max_length=256,
+        batch_size=batch_size,
+        shuffle=False,
+        teacher_forcing=False,
+        predict_eos_token=True,
+        truncate_method="head",
+    )
 
-test_dataloader = PromptDataLoader(
-    dataset=dataset["test"],
-    template=mytemplate,
-    tokenizer=tokenizer,
-    tokenizer_wrapper_class=WrapperClass,
-    max_seq_length=256,
-    decoder_max_length=256,
-    batch_size=batch_size,
-    shuffle=False,
-    teacher_forcing=False,
-    predict_eos_token=True,
-    truncate_method="head",
-)
+    test_dataloader = None
 
 # load the pipeline model PromptForGeneration.
 from openprompt import PromptForGeneration
@@ -346,8 +350,8 @@ if not args.no_train:
 if args.no_train:
     prompt_model.load_state_dict(torch.load(ckpt_file))
 
-    result = evaluate(prompt_model, validation_dataloader)
-    logging.info(f"Validation {result}")
+    #result = evaluate(prompt_model, validation_dataloader)
+    #logging.info(f"Validation {result}")
 
     result = evaluate(prompt_model, test_dataloader)
     logging.info(f"Test {result}")
