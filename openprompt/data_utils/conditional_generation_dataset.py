@@ -126,9 +126,9 @@ class FLEURSProcessor(DataProcessor):
         path = os.path.join(data_dir, "{}.tsv".format(split))
 
         with open(path, encoding="utf-8") as f:
-            reader = csv.DictReader(f, delimiter="\t")
+            reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
             for row in reader:
-                src_text = row["sentence"].split(maxsplit=1)[1]
+                src_text = row["raw_sentence"]
                 if self.add_lang != "code":
                     tgt_text = row["sentence"].split(maxsplit=1)[1]
                     if self.add_lang == "name":
