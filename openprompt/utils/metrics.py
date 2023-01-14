@@ -148,9 +148,9 @@ def generation_metric(hypos,
         return cer(refs, hypos)
     elif metric == "bleu":
         bleu = BLEU()
-        return bleu.corpus_score(refs, [[x] for x in hypos]).score
+        return bleu.corpus_score(hypos, [refs]).score
     elif metric == "chrf":
         chrf = CHRF()
-        return chrf.corpus_score(refs, [[x] for x in hypos]).score
+        return chrf.corpus_score(hypos, [refs]).score
     else:
         raise ValueError("'{}' is not a valid metric type.".format(metric))
