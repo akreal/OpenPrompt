@@ -219,7 +219,7 @@ def split_text(texts):
 from openprompt.utils.metrics import generation_metric
 
 # Define evaluate function
-def evaluate(prompt_model, dataloader):
+def evaluate(prompt_model, dataloader, basename):
     generated_sentence = []
     groundtruth_sentence = []
 
@@ -251,6 +251,13 @@ def evaluate(prompt_model, dataloader):
         / len(generated_lang)
         * 100.0
     )
+
+    with open(f"{basename}_test_ref.txt", "w", encoding="utf-8") as ref, open(
+        f"{basename}_test_hyp.txt", "w", encoding="utf-8"
+    ) as hyp:
+        for i in range(len(groundtruth_sentence)):
+            ref.write(groundtruth_sentence[i] + "\n")
+            hyp.write(generated_sentence[i] + "\n")
 
     return f"Acc;CER;BLEU;CHRF: {acc:.02f};{cer:.02f};{bleu:.02f};{chrf:.02f}"
 
@@ -350,8 +357,8 @@ if not args.no_train:
 if args.no_train:
     prompt_model.load_state_dict(torch.load(ckpt_file))
 
-    #result = evaluate(prompt_model, validation_dataloader)
-    #logging.info(f"Validation {result}")
+    # result = evaluate(prompt_model, validation_dataloader)
+    # logging.info(f"Validation {result}")
 
-    result = evaluate(prompt_model, test_dataloader)
+    result = evaluate(prompt_model, test_dataloader, ckpt_file[:-4])
     logging.info(f"Test {result}")
