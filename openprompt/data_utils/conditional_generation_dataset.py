@@ -210,6 +210,54 @@ class CoVoSTProcessor(DataProcessor):
     def get_src_tgt_len_ratio(self,):
         pass
 
+class AmericasNLPProcessor(DataProcessor):
+    def __init__(self, lang: str):
+        super().__init__()
+        self.labels = None
+        self.lang = lang
+
+        self.lang2name = {
+            "bzd": "Bribri",
+            "gn": "Guarani",
+            "gvc": "Kotiria",
+            "quy": "Quechua",
+            "tav": "Wa'ikhana",
+        }
+
+        self.lang2tgt = {
+            "bzd": "Spanish",
+            "gn": "Spanish",
+            "gvc": "Portuguese",
+            "quy": "Spanish",
+            "tav": "Portuguese",
+        }
+
+
+    def get_examples(self, data_dir: str, split: str) -> List[InputExample]:
+        examples = []
+
+        src_lang_name = self.lang2name[self.lang]
+        tgt_lang_name = self.lang2tgt[self.lang]
+
+        lang_examples = []
+
+        with open(os.path.join(data_dir, src_lang_name, split, "meta.tsv").replace("'", ""), encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE)
+            for row in reader:
+                src_text = row["source_raw"]
+                tgt_text = row["target_raw"]
+
+                if src_text != "" and tgt_text != "":
+                    example = InputExample(guid=row["wav"], text_a=f"from {src_lang_name} to {tgt_lang_name}\n{src_text}\n", tgt_text=tgt_text)
+                    lang_examples.append(example)
+
+        examples.extend(lang_examples)
+
+        return examples
+
+    def get_src_tgt_len_ratio(self,):
+        pass
+
 
 PROCESSORS = {
     "webnlg_2017": WebNLGProcessor,

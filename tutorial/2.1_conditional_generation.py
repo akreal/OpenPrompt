@@ -33,9 +33,12 @@ parser.add_argument(
     "--task", choices=["langid_transcribe", "translate"], default="langid_transcribe"
 )
 parser.add_argument(
+    "--lang", choices=["covost", "bzd", "gn", "gvc", "quy", "tav"], default="covost"
+)
+parser.add_argument(
     "--text",
     type=str,
-    default='Detect language and repeat the sentence: {"placeholder":"text_a"}. {"mask":None, "shortenable":True}',
+    default='Detect language and repeat the sentence\n{"placeholder":"text_a"}\n{"mask":None, "shortenable":True}',
 )
 args = parser.parse_args()
 print(args)
@@ -51,16 +54,22 @@ if args.task == "langid_transcribe":
     dataset["validation"] = processor.get_dev_examples(fleurs_path)
     dataset["test"] = processor.get_test_examples(fleurs_path)
 elif args.task == "translate":
-    from openprompt.data_utils.conditional_generation_dataset import CoVoSTProcessor
+    if args.lang == "covost":
+        from openprompt.data_utils.conditional_generation_dataset import CoVoSTProcessor
+        processor = CoVoSTProcessor()
+        data_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/covost/data/"
+        args.add_lang = "none"
+    else:
+        from openprompt.data_utils.conditional_generation_dataset import AmericasNLPProcessor
+        processor = AmericasNLPProcessor(lang=args.lang)
+        data_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/espnet-americasnlp-kotiria/egs2/americasnlp22/asr1/downloads"
+        args.add_lang = args.lang
 
-    processor = CoVoSTProcessor()
-    covost_path = "/mount/arbeitsdaten45/projekte/asr-4/denisopl/covost/data/"
-    dataset["train"] = processor.get_train_examples(covost_path)
-    dataset["validation"] = processor.get_dev_examples(covost_path)
-    dataset["test"] = processor.get_test_examples(covost_path)
+    dataset["train"] = processor.get_train_examples(data_path)
+    dataset["validation"] = processor.get_dev_examples(data_path)
+    dataset["test"] = processor.get_test_examples(data_path)
 
     args.text = 'Translate the following text {"placeholder":"text_a"} {"mask":None, "shortenable":True}'
-    args.add_lang = "none"
 else:
     print(f"Unknown task '{args.task}'")
     sys.exit()
